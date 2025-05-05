@@ -109,9 +109,6 @@
          </widget>
         </item>
         <item>
-         <widget class="QTableWidget" name="statsTable"/>
-        </item>
-        <item>
          <widget class="QLabel" name="minValueLabel">
           <property name="text">
            <string>Min:</string>

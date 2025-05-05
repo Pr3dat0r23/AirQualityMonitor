@@ -1,31 +1,75 @@
+/**
+ * @file mainwindow.cpp
+ * @brief Implementacja klasy głównego okna aplikacji monitorującej jakość powietrza
+ * @author Piotr Trzeciak
+ * @date 2025
+ * @version 1.2
+ *
+ * Pełna implementacja metod klasy MainWindow zarządzającej:
+ * - Interfejsem użytkownika
+ * - Komunikacją sieciową z API GIOS
+ * - Przetwarzaniem danych JSON
+ * - Wizualizacją danych na wykresach QtCharts
+ * - Operacjami zapisu/odczytu plików JSON
+ */
+
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 #include <QFileDialog>
 #include <QMessageBox>
 #include <fstream>
-#include <QMessageBox>
 #include <QDebug>
 #include <QFile>
 
+// =============================================
+// Konstruktor/Destruktor
+// =============================================
+
+/**
+ * @brief Konstruktor klasy MainWindow
+ * @param parent Wskaźnik na widget rodzica
+ *
+ * Inicjalizuje UI, konfiguruje menadżer sieciowy
+ * i przygotowuje podstawowy wykres.
+ */
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
-    networkManager = new QNetworkAccessManager(this);
-    connect(networkManager, &QNetworkAccessManager::finished, this, &MainWindow::handleNetworkReply);
 
-    // Konfiguracja wykresu
+    // Inicjalizacja menadżera sieci
+    networkManager = new QNetworkAccessManager(this);
+    connect(networkManager, &QNetworkAccessManager::finished,
+            this, &MainWindow::handleNetworkReply);
+
+    // Podstawowa konfiguracja wykresu
     QChart *chart = new QChart();
+    chart->setTitle("Oczekiwanie na dane...");
     ui->chartView->setChart(chart);
     ui->chartView->setRenderHint(QPainter::Antialiasing);
 }
 
+/**
+ * @brief Destruktor klasy MainWindow
+ *
+ * Zwalnia zasoby UI i czyści pamięć.
+ */
 MainWindow::~MainWindow()
 {
     delete ui;
 }
 
+// =============================================
+// Sloty prywatne
+// =============================================
+
+/**
+ * @brief Obsługa kliknięcia przycisku wyszukiwania
+ *
+ * Weryfikuje poprawność danych wejściowych i inicjuje
+ * żądanie sieciowe do API GIOS.
+ */
 void MainWindow::on_searchButton_clicked()
 {
     QString location = ui->locationEdit->text().trimmed();
@@ -38,31 +82,101 @@ void MainWindow::on_searchButton_clicked()
     networkManager->get(QNetworkRequest(QUrl(apiUrl)));
 }
 
+/**
+ * @brief Obsługa zmiany wybranej stacji
+ * @param currentRow Indeks wybranej stacji w liście
+ *
+ * Pobiera dane czujników dla wybranej stacji.
+ */
+void MainWindow::on_stationList_currentRowChanged(int currentRow)
+{
+    if (currentRow < 0 || currentRow >= stations.size()) return;
+
+    currentStation = stations[currentRow];
+    ui->infoText->setHtml(QString("<b>%1</b><br>Adres: %2<br>Współrzędne: %3, %4")
+                              .arg(currentStation.name)
+                              .arg(currentStation.address)
+                              .arg(currentStation.lat)
+                              .arg(currentStation.lon));
+
+    QString sensorsUrl = QString("https://api.gios.gov.pl/pjp-api/rest/station/sensors/%1")
+                             .arg(currentStation.id);
+    networkManager->get(QNetworkRequest(QUrl(sensorsUrl)));
+}
+
+/**
+ * @brief Obsługa zmiany wybranego czujnika
+ * @param currentRow Indeks wybranego czujnika w liście
+ *
+ * Pobiera dane pomiarowe dla wybranego czujnika.
+ */
+void MainWindow::on_sensorList_currentRowChanged(int currentRow)
+{
+    if (currentRow < 0 || currentRow >= sensors.size()) return;
+
+    currentSensor = sensors[currentRow];
+    QString dataUrl = QString("https://api.gios.gov.pl/pjp-api/rest/data/getData/%1")
+                          .arg(currentSensor.id);
+    networkManager->get(QNetworkRequest(QUrl(dataUrl)));
+}
+
+/**
+ * @brief Obsługa zapisu danych do pliku
+ *
+ * Umożliwia użytkownikowi wybór lokalizacji i zapisuje
+ * aktualne dane pomiarowe do pliku JSON.
+ */
+void MainWindow::on_saveButton_clicked()
+{
+    if (measurements.isEmpty()) {
+        showError("Brak danych do zapisania");
+        return;
+    }
+
+    QString fileName = QFileDialog::getSaveFileName(this, "Zapisz dane", "", "JSON (*.json)");
+    if (fileName.isEmpty()) return;
+
+    saveToJson(fileName);
+}
+
+/**
+ * @brief Obsługa wczytywania danych z pliku
+ *
+ * Umożliwia użytkownikowi wybór pliku JSON
+ * i wczytuje z niego dane pomiarowe.
+ */
+void MainWindow::on_loadButton_clicked()
+{
+    QString fileName = QFileDialog::getOpenFileName(this, "Wczytaj dane", "", "JSON (*.json)");
+    if (fileName.isEmpty()) return;
+
+    loadFromJson(fileName);
+}
+
+// =============================================
+// Metody prywatne
+// =============================================
+
+/**
+ * @brief Przetwarza odpowiedź sieciową
+ * @param reply Wskaźnik na obiekt odpowiedzi sieciowej
+ *
+ * Kieruje odpowiedź do odpowiedniej metody przetwarzania
+ * w zależności od typu żądania.
+ */
 void MainWindow::handleNetworkReply(QNetworkReply *reply)
 {
-    // Obsługa błędów sieciowych
     if (reply->error() != QNetworkReply::NoError) {
         showError(QString("Błąd sieciowy: %1").arg(reply->errorString()));
         reply->deleteLater();
         return;
     }
 
-    // Odczyt odpowiedzi
     QByteArray data = reply->readAll();
     reply->deleteLater();
 
-
     try {
-        // Parsowanie JSON
-        json response;
-        try {
-            response = json::parse(data.toStdString());
-        } catch (const json::parse_error &e) {
-            showError(QString("Błąd parsowania JSON: %1").arg(e.what()));
-            return;
-        }
-
-        // Rozpoznawanie typu odpowiedzi
+        json response = json::parse(data.toStdString());
         QString url = reply->url().toString();
 
         if (url.contains("findAll")) {
@@ -74,12 +188,18 @@ void MainWindow::handleNetworkReply(QNetworkReply *reply)
         else if (url.contains("getData")) {
             processMeasurementsData(response);
         }
-
     } catch (const std::exception &e) {
         showError(QString("Błąd przetwarzania danych: %1").arg(e.what()));
     }
 }
 
+/**
+ * @brief Przetwarza dane stacji pomiarowych
+ * @param data Dane JSON z listą stacji
+ *
+ * Parsuje dane stacji, filtruje je według lokalizacji
+ * i wypełnia listę stacji w interfejsie.
+ */
 void MainWindow::processStationsData(const json &data)
 {
     ui->stationList->clear();
@@ -91,7 +211,7 @@ void MainWindow::processStationsData(const json &data)
         QString cityName = QString::fromStdString(item["city"]["name"].get<std::string>()).toLower();
 
         if (!location.isEmpty() && !cityName.contains(location))
-            continue; // filtruj po lokalizacji
+            continue;
 
         Station station;
         station.id = item["id"].get<int>();
@@ -106,7 +226,6 @@ void MainWindow::processStationsData(const json &data)
         station.lat = QString::fromStdString(item["gegrLat"].get<std::string>()).toDouble();
         station.lon = QString::fromStdString(item["gegrLon"].get<std::string>()).toDouble();
 
-
         stations.append(station);
         ui->stationList->addItem(station.name + "\n" + station.address);
     }
@@ -116,25 +235,12 @@ void MainWindow::processStationsData(const json &data)
     }
 }
 
-
-void MainWindow::on_stationList_currentRowChanged(int index)
-{
-    if (index < 0 || index >= stations.size()) return;
-
-    currentStation = stations[index];
-
-    // Aktualizacja informacji o stacji
-    ui->infoText->setHtml(QString("<b>%1</b><br>Adres: %2<br>Współrzędne: %3, %4")
-                              .arg(currentStation.name)
-                              .arg(currentStation.address)
-                              .arg(currentStation.lat)
-                              .arg(currentStation.lon));
-
-    // Pobranie czujników dla stacji
-    QString apiUrl = QString("https://api.gios.gov.pl/pjp-api/rest/station/sensors/%1").arg(currentStation.id);
-    networkManager->get(QNetworkRequest(QUrl(apiUrl)));
-}
-
+/**
+ * @brief Przetwarza dane czujników
+ * @param data Dane JSON z listą czujników
+ *
+ * Parsuje dane czujników i wypełnia listę czujników w interfejsie.
+ */
 void MainWindow::processSensorsData(const json &data)
 {
     ui->sensorList->clear();
@@ -151,56 +257,46 @@ void MainWindow::processSensorsData(const json &data)
     }
 }
 
-void MainWindow::on_sensorList_currentRowChanged(int index)
-{
-    if (index < 0 || index >= sensors.size()) return;
-
-    currentSensor = sensors[index];
-
-    // Pobranie danych pomiarowych
-    QString apiUrl = QString("https://api.gios.gov.pl/pjp-api/rest/data/getData/%1").arg(currentSensor.id);
-    networkManager->get(QNetworkRequest(QUrl(apiUrl)));
-}
-
+/**
+ * @brief Przetwarza dane pomiarowe i aktualizuje wykres
+ * @param data Dane JSON z pomiarami
+ *
+ * Parsuje dane pomiarowe, tworzy nową serię danych,
+ * konfiguruje wykres i oblicza statystyki.
+ */
 void MainWindow::processMeasurementsData(const json &data)
 {
-    // Czyszczenie poprzednich danych
     measurements.clear();
-    ui->chartView->chart()->removeAllSeries();
-    ui->statsTable->clearContents();
-    ui->statsTable->setRowCount(0);
+    QChart *chart = ui->chartView->chart();
+    chart->removeAllSeries();
 
-    // Sprawdzenie podstawowej struktury danych
+    // Usuwanie istniejących osi
+    foreach(QAbstractAxis *axis, chart->axes()) {
+        chart->removeAxis(axis);
+        delete axis;
+    }
+
     if (!data.contains("values") || !data["values"].is_array()) {
         showError("Otrzymano nieprawidłową strukturę danych pomiarowych");
         return;
     }
 
-    // Inicjalizacja serii danych i statystyk
     QLineSeries *series = new QLineSeries();
     QVector<double> validValues;
-    int rowCounter = 0;
 
-    // Przetwarzanie każdego rekordu
     for (const auto& item : data["values"]) {
         try {
-            // Pominięcie rekordów z brakującymi danymi
             if (!item.contains("date") || !item.contains("value")) {
-                qDebug() << "Pominięto rekord z brakującymi polami";
                 continue;
             }
 
-            // Parsowanie daty
             QDateTime dateTime = QDateTime::fromString(
                 QString::fromStdString(item["date"].get<std::string>()),
                 Qt::ISODate
                 );
-            if (!dateTime.isValid()) {
-                qDebug() << "Pominięto rekord z nieprawidłową datą";
-                continue;
-            }
 
-            // Uniwersalna konwersja wartości
+            if (!dateTime.isValid()) continue;
+
             double value = 0;
             bool valueValid = false;
 
@@ -217,27 +313,13 @@ void MainWindow::processMeasurementsData(const json &data)
                 }
             }
 
-            // Pominięcie nieprawidłowych wartości
             if (!valueValid || std::isnan(value) || std::isinf(value)) {
-                qDebug() << "Pominięto nieprawidłową wartość pomiaru";
                 continue;
             }
 
-            // Dodanie prawidłowego pomiaru
-            Measurement measurement;
-            measurement.date = dateTime;
-            measurement.value = value;
-            measurements.append(measurement);
-
-            // Dodanie punktu do wykresu
             series->append(dateTime.toMSecsSinceEpoch(), value);
             validValues.append(value);
-
-            // Dodanie wiersza do tabeli
-            ui->statsTable->insertRow(rowCounter);
-            ui->statsTable->setItem(rowCounter, 0, new QTableWidgetItem(dateTime.toString("yyyy-MM-dd hh:mm")));
-            ui->statsTable->setItem(rowCounter, 1, new QTableWidgetItem(QString::number(value, 'f', 2)));
-            rowCounter++;
+            measurements.append({dateTime, value});
 
         } catch (const std::exception& e) {
             qDebug() << "Błąd przetwarzania rekordu:" << e.what();
@@ -245,30 +327,24 @@ void MainWindow::processMeasurementsData(const json &data)
         }
     }
 
-    // Sprawdzenie czy są jakieś dane do wyświetlenia
     if (measurements.empty()) {
         showError("Nie znaleziono żadnych prawidłowych danych pomiarowych");
         return;
     }
 
-    // Konfiguracja wykresu
-    QChart *chart = ui->chartView->chart();
-    chart->addSeries(series);
-
-    // Ustawienia osi czasu
     QDateTimeAxis *axisX = new QDateTimeAxis();
     axisX->setFormat("dd.MM hh:mm");
     axisX->setTitleText("Data i godzina");
-    chart->addAxis(axisX, Qt::AlignBottom);
-    series->attachAxis(axisX);
 
-    // Ustawienia osi wartości
     QValueAxis *axisY = new QValueAxis();
-    axisY->setTitleText("µg/m³");
+    axisY->setTitleText(currentSensor.paramCode + " [µg/m³]");
+
+    chart->addSeries(series);
+    chart->addAxis(axisX, Qt::AlignBottom);
     chart->addAxis(axisY, Qt::AlignLeft);
+    series->attachAxis(axisX);
     series->attachAxis(axisY);
 
-    // Obliczenie i wyświetlenie statystyk
     if (!validValues.empty()) {
         auto [minIt, maxIt] = std::minmax_element(validValues.begin(), validValues.end());
         double avg = std::accumulate(validValues.begin(), validValues.end(), 0.0) / validValues.size();
@@ -278,86 +354,17 @@ void MainWindow::processMeasurementsData(const json &data)
         ui->avgValueLabel->setText(QString::number(avg, 'f', 2));
     }
 
-    // Aktualizacja interfejsu
+    chart->setTitle("Dane pomiarowe: " + currentSensor.paramName);
     chart->legend()->setVisible(false);
-    chart->setTitle("Dane pomiarowe: " + currentSensorName);
-    ui->chartView->setRenderHint(QPainter::Antialiasing);
 }
 
-void MainWindow::updateChart()
-{
-    QChart *chart = ui->chartView->chart();
-    chart->removeAllSeries();
-
-    if (measurements.isEmpty()) return;
-
-    QLineSeries *series = new QLineSeries();
-    series->setName(currentSensor.paramName);
-
-    for (const auto &m : measurements) {
-        series->append(m.date.toMSecsSinceEpoch(), m.value);
-    }
-
-    chart->addSeries(series);
-    chart->setTitle(QString("%1 - %2").arg(currentSensor.paramName).arg(currentStation.name));
-
-    QDateTimeAxis *axisX = new QDateTimeAxis();
-    axisX->setFormat("dd.MM.yyyy hh:mm");
-    axisX->setTitleText("Data i godzina");
-    chart->addAxis(axisX, Qt::AlignBottom);
-    series->attachAxis(axisX);
-
-    QValueAxis *axisY = new QValueAxis();
-    axisY->setTitleText(currentSensor.paramCode);
-    chart->addAxis(axisY, Qt::AlignLeft);
-    series->attachAxis(axisY);
-}
-
-void MainWindow::updateStats()
-{
-    if (measurements.isEmpty()) return;
-
-    double min = measurements.first().value;
-    double max = measurements.first().value;
-    double sum = 0;
-    QDateTime minTime, maxTime;
-
-    for (const auto &m : measurements) {
-        if (m.value < min) {
-            min = m.value;
-            minTime = m.date;
-        }
-        if (m.value > max) {
-            max = m.value;
-            maxTime = m.date;
-        }
-        sum += m.value;
-    }
-
-    double avg = sum / measurements.size();
-
-    QString stats = ui->infoText->toHtml();
-    stats += "<hr><b>Statystyki:</b><br>";
-    stats += QString("Min: %1 (%2)<br>").arg(min).arg(minTime.toString("dd.MM.yyyy hh:mm"));
-    stats += QString("Max: %1 (%2)<br>").arg(max).arg(maxTime.toString("dd.MM.yyyy hh:mm"));
-    stats += QString("Średnia: %1").arg(avg);
-
-    ui->infoText->setHtml(stats);
-}
-
-void MainWindow::on_saveButton_clicked()
-{
-    if (measurements.isEmpty()) {
-        showError("Brak danych do zapisania");
-        return;
-    }
-
-    QString fileName = QFileDialog::getSaveFileName(this, "Zapisz dane", "", "JSON (*.json)");
-    if (fileName.isEmpty()) return;
-
-    saveToJson(fileName);
-}
-
+/**
+ * @brief Zapisuje dane do pliku JSON
+ * @param filename Ścieżka do pliku docelowego
+ *
+ * Serializuje aktualne dane (stację, czujnik, pomiary)
+ * do formatu JSON i zapisuje do pliku.
+ */
 void MainWindow::saveToJson(const QString &filename)
 {
     json data;
@@ -391,14 +398,13 @@ void MainWindow::saveToJson(const QString &filename)
     }
 }
 
-void MainWindow::on_loadButton_clicked()
-{
-    QString fileName = QFileDialog::getOpenFileName(this, "Wczytaj dane", "", "JSON (*.json)");
-    if (fileName.isEmpty()) return;
-
-    loadFromJson(fileName);
-}
-
+/**
+ * @brief Wczytuje dane z pliku JSON
+ * @param filename Ścieżka do pliku źródłowego
+ *
+ * Deserializuje dane z pliku JSON i aktualizuje
+ * interfejs użytkownika na podstawie wczytanych danych.
+ */
 void MainWindow::loadFromJson(const QString &filename)
 {
     try {
@@ -445,7 +451,85 @@ void MainWindow::loadFromJson(const QString &filename)
     }
 }
 
+/**
+ * @brief Wyświetla komunikat o błędzie
+ * @param message Treść komunikatu błędu
+ *
+ * Wyświetla standardowe okno dialogowe z komunikatem błędu.
+ */
 void MainWindow::showError(const QString &message)
 {
     QMessageBox::critical(this, "Błąd", message);
+}
+
+/**
+ * @brief Aktualizuje wykres pomiarów
+ *
+ * Odświeża wykres na podstawie aktualnych danych pomiarowych.
+ */
+void MainWindow::updateChart()
+{
+    QChart *chart = ui->chartView->chart();
+    chart->removeAllSeries();
+
+    if (measurements.isEmpty()) return;
+
+    QLineSeries *series = new QLineSeries();
+    series->setName(currentSensor.paramName);
+
+    for (const auto &m : measurements) {
+        series->append(m.date.toMSecsSinceEpoch(), m.value);
+    }
+
+    chart->addSeries(series);
+    chart->setTitle(QString("%1 - %2").arg(currentSensor.paramName).arg(currentStation.name));
+
+    QDateTimeAxis *axisX = new QDateTimeAxis();
+    axisX->setFormat("dd.MM.yyyy hh:mm");
+    axisX->setTitleText("Data i godzina");
+    chart->addAxis(axisX, Qt::AlignBottom);
+    series->attachAxis(axisX);
+
+    QValueAxis *axisY = new QValueAxis();
+    axisY->setTitleText(currentSensor.paramCode);
+    chart->addAxis(axisY, Qt::AlignLeft);
+    series->attachAxis(axisY);
+}
+
+/**
+ * @brief Aktualizuje statystyki pomiarów
+ *
+ * Oblicza i wyświetla podstawowe statystyki (min, max, średnia)
+ * w panelu informacyjnym.
+ */
+void MainWindow::updateStats()
+{
+    if (measurements.isEmpty()) return;
+
+    double min = measurements.first().value;
+    double max = measurements.first().value;
+    double sum = 0;
+    QDateTime minTime, maxTime;
+
+    for (const auto &m : measurements) {
+        if (m.value < min) {
+            min = m.value;
+            minTime = m.date;
+        }
+        if (m.value > max) {
+            max = m.value;
+            maxTime = m.date;
+        }
+        sum += m.value;
+    }
+
+    double avg = sum / measurements.size();
+
+    QString stats = ui->infoText->toHtml();
+    stats += "<hr><b>Statystyki:</b><br>";
+    stats += QString("Min: %1 (%2)<br>").arg(min).arg(minTime.toString("dd.MM.yyyy hh:mm"));
+    stats += QString("Max: %1 (%2)<br>").arg(max).arg(maxTime.toString("dd.MM.yyyy hh:mm"));
+    stats += QString("Średnia: %1").arg(avg);
+
+    ui->infoText->setHtml(stats);
 }

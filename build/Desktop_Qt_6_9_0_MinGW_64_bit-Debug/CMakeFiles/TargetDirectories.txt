@@ -1,5 +1,10 @@
 C:/Users/komputer/Documents/AirQuailtyMonitor/build/Desktop_Qt_6_9_0_MinGW_64_bit-Debug/CMakeFiles/AirQualityMonitor.dir
 C:/Users/komputer/Documents/AirQuailtyMonitor/build/Desktop_Qt_6_9_0_MinGW_64_bit-Debug/CMakeFiles/AirQualityMonitor_qmlimportscan.dir
+C:/Users/komputer/Documents/AirQuailtyMonitor/build/Desktop_Qt_6_9_0_MinGW_64_bit-Debug/CMakeFiles/doxygen-docs.dir
+C:/Users/komputer/Documents/AirQuailtyMonitor/build/Desktop_Qt_6_9_0_MinGW_64_bit-Debug/CMakeFiles/AirQualityMonitor_lib.dir
+C:/Users/komputer/Documents/AirQuailtyMonitor/build/Desktop_Qt_6_9_0_MinGW_64_bit-Debug/CMakeFiles/AirQualityMonitorTests.dir
+C:/Users/komputer/Documents/AirQuailtyMonitor/build/Desktop_Qt_6_9_0_MinGW_64_bit-Debug/CMakeFiles/AirQualityMonitorTests_qmlimportscan.dir
+C:/Users/komputer/Documents/AirQuailtyMonitor/build/Desktop_Qt_6_9_0_MinGW_64_bit-Debug/CMakeFiles/test.dir
 C:/Users/komputer/Documents/AirQuailtyMonitor/build/Desktop_Qt_6_9_0_MinGW_64_bit-Debug/CMakeFiles/edit_cache.dir
 C:/Users/komputer/Documents/AirQuailtyMonitor/build/Desktop_Qt_6_9_0_MinGW_64_bit-Debug/CMakeFiles/rebuild_cache.dir
 C:/Users/komputer/Documents/AirQuailtyMonitor/build/Desktop_Qt_6_9_0_MinGW_64_bit-Debug/CMakeFiles/list_install_components.dir
@@ -8,3 +13,7 @@ C:/Users/komputer/Documents/AirQuailtyMonitor/build/Desktop_Qt_6_9_0_MinGW_64_bi
 C:/Users/komputer/Documents/AirQuailtyMonitor/build/Desktop_Qt_6_9_0_MinGW_64_bit-Debug/CMakeFiles/install/strip.dir
 C:/Users/komputer/Documents/AirQuailtyMonitor/build/Desktop_Qt_6_9_0_MinGW_64_bit-Debug/CMakeFiles/AirQualityMonitor_autogen_timestamp_deps.dir
 C:/Users/komputer/Documents/AirQuailtyMonitor/build/Desktop_Qt_6_9_0_MinGW_64_bit-Debug/CMakeFiles/AirQualityMonitor_autogen.dir
+C:/Users/komputer/Documents/AirQuailtyMonitor/build/Desktop_Qt_6_9_0_MinGW_64_bit-Debug/CMakeFiles/AirQualityMonitor_lib_autogen_timestamp_deps.dir
+C:/Users/komputer/Documents/AirQuailtyMonitor/build/Desktop_Qt_6_9_0_MinGW_64_bit-Debug/CMakeFiles/AirQualityMonitor_lib_autogen.dir
+C:/Users/komputer/Documents/AirQuailtyMonitor/build/Desktop_Qt_6_9_0_MinGW_64_bit-Debug/CMakeFiles/AirQualityMonitorTests_autogen_timestamp_deps.dir
+C:/Users/komputer/Documents/AirQuailtyMonitor/build/Desktop_Qt_6_9_0_MinGW_64_bit-Debug/CMakeFiles/AirQualityMonitorTests_autogen.dir

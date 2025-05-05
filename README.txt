@@ -21,5 +21,8 @@ cd AirQualityMonitor
 ## Autor
 Projekt stworzony przez: [Piotr Trzeciak]
 
+Dokumentacja kodu jest dostępna:
+- Lokalnie: otwórz `docs/html/index.html` w przeglądarce
+
 ## Licencja
 Ten projekt jest objęty licencją MIT.
